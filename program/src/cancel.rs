@@ -42,8 +42,12 @@ pub fn bet(
         return Err(ProgramError::InvalidInstructionData);
     }
     // make sure the bettor signed the tx so people can't cancel other people's bets
-    if !is_refund && !bettorOrRefunder.is_signer {
+    if !bettorOrRefunder.is_signer {
         msg!("bettor isn't signing");
+        return Err(ProgramError::InvalidArgument);
+    }
+    if is_refund && !utils::equal_wallets(bettorOrRefunder.key.to_bytes(), utils::ADMIN){
+        msg!("refunding must be done by admin");
         return Err(ProgramError::InvalidArgument);
     }
     // if it is a free bet, return the usdc to the rent_payer, otherwise bettor
