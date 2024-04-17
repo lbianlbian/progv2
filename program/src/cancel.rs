@@ -50,15 +50,21 @@ pub fn bet(
         msg!("refunding must be done by admin");
         return Err(ProgramError::InvalidArgument);
     }
+    
+    let mut bettor:[u8;32];
+    if utils::blank_wallet(bet_account.wallet0){
+        bettor = bet_account.wallet1;
+    }
+    else{
+        bettor = bet_account.wallet0;
+    }
+    if !is_refund && !utils::equal_wallets(bettorOrRefunder.key.to_bytes(), bettor){
+        msg!("not correct bettor canceling");
+        return Err(ProgramError::InvalidArgument);
+    }
     // if it is a free bet, return the usdc to the rent_payer, otherwise bettor
     if !bet_account.is_free_bet{
-        let mut bettor:[u8;32];
-        if utils::blank_wallet(bet_account.wallet0){
-            bettor = bet_account.wallet1;
-        }
-        else{
-            bettor = bet_account.wallet0;
-        }
+        
         if !token::are_paired(bettor.key.to_bytes(), destination)?{
             msg!("wrong associated token account");
             return Err(ProgramError::InvalidArgument);
