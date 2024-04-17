@@ -15,7 +15,8 @@ pub fn bet(
     bet_account: utils::BetAcc,
     accounts: &[AccountInfo],
     instruction_data: &[u8],
-    program_id: &Pubkey
+    program_id: &Pubkey,
+    is_refund: bool
 ) -> ProgramResult {
     //get accounts
     let accounts_iter = &mut accounts.iter();
@@ -24,7 +25,7 @@ pub fn bet(
     let _tok_prog = next_account_info(accounts_iter)?;
     let _source = next_account_info(accounts_iter)?;
     let destination = next_account_info(accounts_iter)?;
-    let bettor = next_account_info(accounts_iter)?; //cant use free bet in taker order, so bettor = authority
+    let bettorOrRefunder = next_account_info(accounts_iter)?; //cant use free bet in taker order, so bettor = authority
     let rent_payer = next_account_info(accounts_iter)?;
     let _pda = next_account_info(accounts_iter)?;
     
@@ -41,12 +42,19 @@ pub fn bet(
         return Err(ProgramError::InvalidInstructionData);
     }
     // make sure the bettor signed the tx so people can't cancel other people's bets
-    if !bettor.is_signer {
+    if !is_refund && !bettorOrRefunder.is_signer {
         msg!("bettor isn't signing");
         return Err(ProgramError::InvalidArgument);
     }
     // if it is a free bet, return the usdc to the rent_payer, otherwise bettor
     if !bet_account.is_free_bet{
+        let mut bettor:[u8;32];
+        if utils::blank_wallet(bet_account.wallet0){
+            bettor = bet_account.wallet1;
+        }
+        else{
+            bettor = bet_account.wallet0;
+        }
         if !token::are_paired(bettor.key.to_bytes(), destination)?{
             msg!("wrong associated token account");
             return Err(ProgramError::InvalidArgument);
@@ -58,7 +66,7 @@ pub fn bet(
             return Err(ProgramError::InvalidArgument);
         }
     }
-    if bet_account.to_aggregate{
+    if bet_account.to_aggregate{ // only appears if canceling a to aggregate account
         //need to also allow 7 acc cancelation instr if the bet isn't to_aggregate
         let delay_storage: &AccountInfo = next_account_info(accounts_iter)?;
         // check that current time is at least delay seconds later than placed_at
@@ -73,7 +81,7 @@ pub fn bet(
         }
         let clock = Clock::get()?;
         let curr_time = clock.unix_timestamp as u64;
-        if bet_account.to_aggregate && curr_time - (delay_acc.seconds as u64) < bet_account.placed_at {
+        if !is_refund && bet_account.to_aggregate && curr_time - (delay_acc.seconds as u64) < bet_account.placed_at {
             msg!("too early to cancel");
             return Err(ProgramError::InvalidAccountData);
         }
