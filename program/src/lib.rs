@@ -59,9 +59,14 @@ pub fn process_instruction(
             }
         } else {
             if accounts.len() == 7 || accounts[7].data_len() == 2 {
-                result = cancel::bet(bet_account, accounts, instruction_data, program_id);
-            } else if accounts.len() == 8 {
-                result = Ok(());
+                let is_refund: bool = instruction_data[21] as bool;
+                result = cancel::bet(
+                    bet_account,
+                    accounts,
+                    instruction_data,
+                    program_id,
+                    is_refund,
+                );
             } else {
                 result = Err(ProgramError::InvalidArgument);
             }
